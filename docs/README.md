@@ -46,6 +46,8 @@ R-TYPEのゲームデザインに敬意を表した非公式のファン作品�
 7. **EVENT HORIZON / 還らざる境界**：最終防衛線。多重攻撃のTHE ARBITER。
 8. **REQUIEM / 最後の鼓動**：フォースだけで破壊できる始原核ORIGIN。
 
+![生体洞窟のボス戦](screenshots/stage2-boss.jpg)
+
 ## 表示・音響
 
 Blender 5.2.2で制作した9種類のモデルをglTF 2.0で読み込みます。金属とセラミックのPBR材質、環境反射、複数光源、ブルーム、装甲の表面テクスチャ、破片・スパーク、奥行きのある構造物をThree.jsで描画します。編集用の[Blenderファイル](../art/requiem-assets.blend)と[制作スクリプト](../tools/make_models.py)を同梱しています。
