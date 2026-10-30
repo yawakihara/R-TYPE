@@ -1,0 +1,10 @@
+import { build } from 'esbuild';
+import { mkdir, cp, copyFile } from 'node:fs/promises';
+await mkdir('dist/assets', {recursive:true});
+await build({entryPoints:['src/main.js'],bundle:true,minify:true,format:'esm',target:'es2022',outfile:'dist/assets/game.js',legalComments:'eof'});
+await copyFile('index.html','dist/index.html');
+await copyFile('src/style.css','dist/assets/style.css');
+await cp('public', 'dist', {recursive:true});
+await mkdir('dist/third-party',{recursive:true});
+await copyFile('node_modules/three/LICENSE','dist/third-party/three-LICENSE.txt');
+process.stdout.write('Built dist/ — self-contained static site, no runtime CDN.\n');
