@@ -54,6 +54,10 @@ Blender 5.2.2で制作した9種類のモデルをglTF 2.0で読み込みます�
 
 全11曲をWeb Audioで合成します。MODERNとARCADE FMの音源切替、残響、ステレオディレイ、ドラム、専用効果音を実装しています。SOUND ARCHIVEのEXPORT / WAVから、選択曲の32秒ステレオWAVを保存できます。
 
+波動砲は、溜めるほど低い唸り・金属の共鳴・旋回する電気ノイズがせり上がります。発射時は白い核、青い螺旋状のプラズマ、膨張する余波、残光に、放電音・重低音・飛翔音・ステレオの残響を重ねています。ポーズや画面移動では蓄積音を止めます。
+
+[蓄積から最大出力の発射までの試聴（5秒・WAV）](audio/REQUIEM-wave-cannon-modern.wav)
+
 [ステージ1のBGM試聴ファイル（32秒・WAV）](audio/REQUIEM-01-modern.wav)
 
 描画品質はULTRA / HIGH / BALANCED / PERFORMANCEから選べます。低フレームレートが続く場合は描画解像度・ブルームを自動で段階的に下げます。ブラウザーの非表示・ウィンドウの遮蔽等による制限は別途影響します。
@@ -81,6 +85,8 @@ npm run build
 ## 検証
 
 [検証記録](VALIDATION.md)に、実施内容と未確認の範囲を分けて記載しています。
+
+波動砲の表示・音響を再確認する場合は、`node node_modules/esbuild/bin/esbuild tests/wave-lab.mjs --bundle --format=esm --outfile=.cache/wave-lab.js`で検証ページ用JSを作り、`node tools/serve.mjs`で起動して`/tests/wave-lab.html`を開きます。製品の描画・音声クラスを使い、3段階×2音源と蓄積音の停止を検証できます。
 
 自動テストの通しプレイは描画なし・被弾無効の練習条件で、通常の射撃・チャージ・フォース操作を使います。人が残機制限内で全ステージをクリアしたという意味ではありません。
 

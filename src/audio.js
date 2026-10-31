@@ -21,6 +21,7 @@ export class AudioEngine {
   constructor(settings={}) {
     this.volume=settings.volume??.65;this.musicVolume=settings.music??.65;this.sfxVolume=settings.sfx??.8;
     this.mode=settings.soundMode||'modern';this.muted=false;this.track=9;this.step=0;this.next=0;this.started=false;this.paused=false;this.lastShot=0;
+    this.chargeVoice=null;
   }
   /** 初回のユーザー操作内でAudioContextを初期化・再開する。 */
   async start() {
@@ -48,6 +49,111 @@ export class AudioEngine {
       const wet=c.createGain();wet.gain.value=.22;this.reverb.connect(wet);wet.connect(this.music);
       this.delay=c.createDelay(.8);this.delay.delayTime.value=.24;const feedback=c.createGain();feedback.gain.value=.28;
       const delayWet=c.createGain();delayWet.gain.value=.17;this.delay.connect(feedback);feedback.connect(this.delay);this.delay.connect(delayWet);delayWet.connect(this.music);
+      // 効果音の残響はBGM音量から独立させる。
+      this.sfxSpace=c.createConvolver();this.sfxSpace.buffer=ir;
+      const spaceReturn=c.createGain();spaceReturn.gain.value=.24;this.sfxSpace.connect(spaceReturn);spaceReturn.connect(this.sfx);
+  }
+  /** 蓄積中だけ鳴る、低域・金属共鳴・旋回ノイズを持つ音声を開始する。@param {number} time 発音時刻 @returns {object} 再利用する音声ノード */
+  createChargeVoice(time) {
+    const c=this.ctx,amp=c.createGain(),tremolo=c.createGain(),pan=c.createStereoPanner(),wet=c.createGain();
+    amp.gain.setValueAtTime(0,time);tremolo.gain.value=.78;wet.gain.value=.19;
+    tremolo.connect(amp);amp.connect(pan);pan.connect(this.sfx);pan.connect(wet);wet.connect(this.sfxSpace);
+    const sources=[],nodes=[amp,tremolo,pan,wet];
+    const oscillator=(type,freq,gain,destination=tremolo)=>{
+      const o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,time);g.gain.value=gain;o.connect(g);g.connect(destination);sources.push(o);nodes.push(o,g);return {o,g};
+    };
+    const sub=oscillator('sine',53,.13),lower=oscillator('triangle',106,.065);
+    const filter=c.createBiquadFilter();filter.type='lowpass';filter.frequency.setValueAtTime(320,time);filter.Q.value=2;filter.connect(tremolo);nodes.push(filter);
+    const coil=oscillator(this.mode==='fm'?'sine':'sawtooth',145,.053,filter),twin=oscillator('sine',147,.055,filter);
+    coil.o.detune.value=-7;twin.o.detune.value=7;
+    const fm=oscillator('sine',28,8,coil.o.frequency),pulse=oscillator('sine',4,.17,tremolo.gain),orbit=oscillator('sine',.8,.05,pan.pan);
+    const noise=c.createBufferSource(),airFilter=c.createBiquadFilter(),air=c.createGain();noise.buffer=this.noise;noise.loop=true;
+    airFilter.type='bandpass';airFilter.frequency.setValueAtTime(450,time);airFilter.Q.value=1.1;air.gain.setValueAtTime(.01,time);
+    noise.connect(airFilter);airFilter.connect(air);air.connect(tremolo);sources.push(noise);nodes.push(noise,airFilter,air);
+    for(const source of sources)source.start(time);
+    return {amp,pan,sub,lower,coil,twin,fm,pulse,orbit,filter,airFilter,air,sources,nodes};
+  }
+  /** チャージ量に合わせて連続音を変化させる。@param {number} amount 0〜1 @param {boolean} active 溜め操作中か @param {number} x 発音位置 @param {number} when 検証用の予約時刻 */
+  syncCharge(amount,active,x=0,when=this.ctx?.currentTime) {
+    if(!this.ctx||!this.started)return;
+    const t=when,q=clamp(amount||0,0,1);
+    if(!active||q<.025){this.stopCharge(t);return;}
+    if(!this.chargeVoice)this.chargeVoice=this.createChargeVoice(t);
+    const v=this.chargeVoice,curve=q*q;
+    const target=(param,value,tau=.035)=>param.setTargetAtTime(value,t,tau);
+    target(v.amp.gain,.35+q*.65);target(v.pan.pan,clamp(x/28,-.65,.65));
+    target(v.sub.o.frequency,53+curve*39);target(v.lower.o.frequency,106+curve*78);
+    target(v.coil.o.frequency,145+curve*735);target(v.twin.o.frequency,147+curve*742);
+    target(v.fm.o.frequency,28+q*108);target(v.fm.g.gain,8+curve*95);
+    target(v.filter.frequency,320+curve*4700);target(v.filter.Q,2+q*2.8);
+    target(v.pulse.o.frequency,4+curve*13);target(v.orbit.o.frequency,.8+q*3.2);target(v.orbit.g.gain,.05+q*.18);
+    target(v.airFilter.frequency,450+curve*3400);target(v.air.gain,.01+curve*.085);
+    this.music.gain.setTargetAtTime(this.musicVolume*.5*.76,t,.09);
+  }
+  /** 解放・ポーズ・被弾・画面移動時に蓄積音をフェード停止し、ノードを解放する。@param {number} when 停止時刻 */
+  stopCharge(when=this.ctx?.currentTime) {
+    if(!this.chargeVoice)return;
+    const v=this.chargeVoice;this.chargeVoice=null;
+    v.amp.gain.cancelScheduledValues(when);v.amp.gain.setTargetAtTime(0,when,.025);
+    for(const source of v.sources)source.stop(when+.16);
+    v.sources[0].onended=()=>{for(const node of v.nodes)node.disconnect();};
+    this.music.gain.setTargetAtTime(this.musicVolume*(this.paused?.17:.5),when,.2);
+  }
+  /** 最大蓄積を、共鳴の広がる短い和音で知らせる。@param {number} when 発音時刻 */
+  chargeReady(when=this.ctx.currentTime) {
+    const c=this.ctx;
+    for(const [frequency,delay]of [[880,0],[1320,.025],[1760,.05]]){
+      const o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(frequency,when+delay);
+      g.gain.setValueAtTime(0,when+delay);g.gain.linearRampToValueAtTime(.065,when+delay+.012);g.gain.exponentialRampToValueAtTime(.001,when+delay+.38);
+      o.connect(g);g.connect(this.sfx);g.connect(this.sfxSpace);o.start(when+delay);o.stop(when+delay+.42);o.onended=()=>{o.disconnect();g.disconnect();};
+    }
+  }
+  /** 波動砲の解放音。鋭い放電・重い低音・空気を切る音・飛翔する残響を重ねる。@param {number} power 0.5/1/2 @param {number} x 発音位置 @param {number} when 発射時刻 */
+  waveShot(power=2,x=0,when=this.ctx.currentTime) {
+    const c=this.ctx,t=when,energy=clamp(power/2,.25,1),pan=c.createStereoPanner(),bus=c.createGain(),wet=c.createGain();
+    this.stopCharge(t);
+    this.music.gain.cancelScheduledValues(t);this.music.gain.setTargetAtTime(this.musicVolume*.5*.48,t,.018);this.music.gain.setTargetAtTime(this.musicVolume*.5,t+.55,.25);
+    pan.pan.setValueAtTime(clamp(x/26,-.65,.65),t);pan.pan.linearRampToValueAtTime(.75,t+.85);wet.gain.value=.35+energy*.17;
+    bus.gain.value=.7+energy*.3;bus.connect(pan);pan.connect(this.sfx);pan.connect(wet);wet.connect(this.sfxSpace);
+    const sources=[],nodes=[pan,bus,wet];
+    const tone=(type,from,to,peak,duration)=>{
+      const o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(from,t);o.frequency.exponentialRampToValueAtTime(to,t+duration*.76);
+      g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(peak,t+.009);g.gain.exponentialRampToValueAtTime(.001,t+duration);
+      o.connect(g);g.connect(bus);sources.push(o);nodes.push(o,g);o.start(t);o.stop(t+duration+.04);return o;
+    };
+    tone('sine',210+energy*100,36+energy*10,.28+energy*.23,.65+energy*.35);
+    tone('triangle',110+energy*40,28,.1+energy*.11,.8+energy*.3);
+    const crack=tone(this.mode==='fm'?'sine':'triangle',920+energy*330,120,.09+energy*.07,.32);
+    const mod=c.createOscillator(),mg=c.createGain();mod.frequency.setValueAtTime(1460,t);mod.frequency.exponentialRampToValueAtTime(90,t+.28);mg.gain.setValueAtTime(470,t);mg.gain.exponentialRampToValueAtTime(1,t+.3);mod.connect(mg);mg.connect(crack.frequency);mod.start(t);mod.stop(t+.36);sources.push(mod);nodes.push(mod,mg);
+    const noise=(filterType,frequency,peak,duration)=>{
+      const n=c.createBufferSource(),filter=c.createBiquadFilter(),g=c.createGain();n.buffer=this.noise;n.loop=true;filter.type=filterType;filter.Q.value=.75;filter.frequency.setValueAtTime(frequency,t);filter.frequency.exponentialRampToValueAtTime(170,t+duration);
+      g.gain.setValueAtTime(.001,t);g.gain.exponentialRampToValueAtTime(peak,t+.006);g.gain.exponentialRampToValueAtTime(.001,t+duration);n.connect(filter);filter.connect(g);g.connect(bus);n.start(t);n.stop(t+duration+.04);sources.push(n);nodes.push(n,filter,g);
+    };
+    noise('highpass',3400,.18+energy*.13,.065);
+    noise('bandpass',1900+energy*1800,.13+energy*.12,.7+energy*.5);
+    const echo=c.createDelay(.5),feedback=c.createGain(),echoReturn=c.createGain();echo.delayTime.value=.145;feedback.gain.value=.23;echoReturn.gain.value=.16;
+    bus.connect(echo);echo.connect(feedback);feedback.connect(echo);echo.connect(echoReturn);echoReturn.connect(this.sfxSpace);nodes.push(echo,feedback,echoReturn);
+    const cleanup=c.createOscillator(),silent=c.createGain();silent.gain.value=0;cleanup.connect(silent);silent.connect(this.sfx);cleanup.start(t);cleanup.stop(t+2.3);nodes.push(cleanup,silent);
+    cleanup.onended=()=>{for(const node of nodes)node.disconnect();};
+  }
+  /** 実際の蓄積・発射処理から試聴用WAVと独立検証値を生成する。@param {number} power 0.5/1/2 @returns {Promise<object>} 音声・最大振幅・RMS */
+  async renderWeaponDemo(power=2) {
+    const seconds=5,rate=44100,offline=new AudioEngine({volume:.85,music:0,sfx:.85,soundMode:this.mode});
+    offline.ctx=new OfflineAudioContext(2,seconds*rate,rate);offline.buildGraph();offline.started=true;
+    const duration=1.65*clamp(power/2,.25,1),start=.15;
+    for(let step=0;step<=Math.ceil(duration*60);step++)offline.syncCharge(Math.min(1,step/60/1.65),true,-9,start+step/60);
+    if(power===2)offline.chargeReady(start+duration);
+    offline.waveShot(power,-9,start+duration+.12);
+    return this.wavResult(await offline.ctx.startRendering());
+  }
+  /** AudioBufferを16bitステレオWAVへ変換する。@param {AudioBuffer} buffer 合成結果 @returns {object} Blobと音量検証値 */
+  wavResult(buffer) {
+    const left=buffer.getChannelData(0),right=buffer.getChannelData(1),rate=buffer.sampleRate;
+    let peak=0,sum=0;
+    const data=new ArrayBuffer(44+left.length*4),view=new DataView(data),write=(offset,text)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i));};
+    write(0,'RIFF');view.setUint32(4,36+left.length*4,true);write(8,'WAVE');write(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,rate,true);view.setUint32(28,rate*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,left.length*4,true);
+    for(let i=0;i<left.length;i++){const l=left[i],r=right[i];peak=Math.max(peak,Math.abs(l),Math.abs(r));sum+=l*l+r*r;view.setInt16(44+i*4,clamp(l,-1,1)*32767,true);view.setInt16(46+i*4,clamp(r,-1,1)*32767,true);}
+    return {blob:new Blob([data],{type:'audio/wav'}),peak,rms:Math.sqrt(sum/(left.length*2)),seconds:buffer.duration,rate};
   }
   /** 選択曲をWAVへ合成する。@param {number} index 曲番号 @param {number} seconds 長さ @returns {Promise<object>} WAVと音量の検証値 */
   async renderTrack(index,seconds=32) {
@@ -56,12 +162,7 @@ export class AudioEngine {
     const dur=60/TRACKS[index].bpm/4;
     for(let step=0,t=.02;t<seconds-1.2;t+=dur,step++)offline.sequence(step,t,dur);
     offline.master.gain.setValueAtTime(.85*.7,seconds-1.2);offline.master.gain.linearRampToValueAtTime(0,seconds-.03);
-    const buffer=await offline.ctx.startRendering(),left=buffer.getChannelData(0),right=buffer.getChannelData(1);
-    let peak=0,sum=0;
-    const data=new ArrayBuffer(44+left.length*4),view=new DataView(data),write=(offset,text)=>{for(let i=0;i<text.length;i++)view.setUint8(offset+i,text.charCodeAt(i));};
-    write(0,'RIFF');view.setUint32(4,36+left.length*4,true);write(8,'WAVE');write(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,2,true);view.setUint32(24,rate,true);view.setUint32(28,rate*4,true);view.setUint16(32,4,true);view.setUint16(34,16,true);write(36,'data');view.setUint32(40,left.length*4,true);
-    for(let i=0;i<left.length;i++){const l=left[i],r=right[i];peak=Math.max(peak,Math.abs(l),Math.abs(r));sum+=l*l+r*r;view.setInt16(44+i*4,clamp(l,-1,1)*32767,true);view.setInt16(46+i*4,clamp(r,-1,1)*32767,true);}
-    return {blob:new Blob([data],{type:'audio/wav'}),peak,rms:Math.sqrt(sum/(left.length*2)),seconds,rate};
+    return this.wavResult(await offline.ctx.startRendering());
   }
   /** 曲を変更する。再選択時は再生位置を維持する。@param {number} index 曲番号 */
   play(index) {if(this.track===index)return;this.track=index;this.step=0;if(this.ctx)this.next=this.ctx.currentTime+.08;}
@@ -142,19 +243,22 @@ export class AudioEngine {
   effect(type,data={}) {
     if(!this.ctx||!this.started)return;
     const c=this.ctx,t=c.currentTime;
+    if(type==='wave'){this.waveShot(data.power||2,data.x||0,t);return;}
+    if(type==='charged'){this.chargeReady(t);return;}
+    if(type==='playerDeath'||type==='stage'||type==='gameover'||type==='victory')this.stopCharge(t);
     if(type==='shot'&&t-this.lastShot<.095)return;
     if(type==='shot')this.lastShot=t;
-    const spec={shot:[950,290,.09,.045,'square'],wave:[130,38,.65,.3,'sawtooth'],charged:[500,1100,.22,.1,'sine'],forceLaunch:[240,70,.34,.17,'sawtooth'],forceRecall:[120,630,.3,.1,'sine'],forceDock:[600,1200,.14,.1,'sine'],pickup:[650,1600,.24,.17,'sine'],extend:[550,1800,.45,.2,'sine'],drive:[55,260,.8,.26,'sawtooth'],hit:[180,55,.065,.06,'square'],armour:[1800,450,.045,.028,'triangle'],block:[1400,600,.04,.025,'sine'],graze:[1000,1400,.04,.02,'sine'],missile:[180,80,.18,.07,'sawtooth'],ui:[800,1050,.055,.04,'sine']}[type];
+    const spec={shot:[950,290,.09,.045,'square'],forceLaunch:[240,70,.34,.17,'sawtooth'],forceRecall:[120,630,.3,.1,'sine'],forceDock:[600,1200,.14,.1,'sine'],pickup:[650,1600,.24,.17,'sine'],extend:[550,1800,.45,.2,'sine'],drive:[55,260,.8,.26,'sawtooth'],hit:[180,55,.065,.06,'square'],armour:[1800,450,.045,.028,'triangle'],block:[1400,600,.04,.025,'sine'],graze:[1000,1400,.04,.02,'sine'],missile:[180,80,.18,.07,'sawtooth'],ui:[800,1050,.055,.04,'sine']}[type];
     if(spec) {
       const [a,b,d,v,shape]=spec,o=c.createOscillator(),g=c.createGain(),p=c.createStereoPanner();
       o.type=shape;o.frequency.setValueAtTime(a,t);o.frequency.exponentialRampToValueAtTime(b,t+d);
       g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.001,t+d);p.pan.value=clamp((data.x||0)/24,-.8,.8);
       o.connect(g);g.connect(p);p.connect(this.sfx);o.start(t);o.stop(t+d+.02);
     }
-    if(['explosion','playerDeath','bossDeath','partBreak','wave'].includes(type)) {
-      const big=type==='bossDeath'?3:type==='playerDeath'?1.5:1,duration=type==='wave'?.5:.55*big;
+    if(['explosion','playerDeath','bossDeath','partBreak'].includes(type)) {
+      const big=type==='bossDeath'?3:type==='playerDeath'?1.5:1,duration=.55*big;
       const n=c.createBufferSource(),f=c.createBiquadFilter(),g=c.createGain();n.buffer=this.noise;n.loop=true;f.type='lowpass';f.frequency.setValueAtTime(3200,t);f.frequency.exponentialRampToValueAtTime(70,t+duration);
-      g.gain.setValueAtTime((type==='wave'?.16:.29)*Math.min(big,1.6),t);g.gain.exponentialRampToValueAtTime(.001,t+duration);n.connect(f);f.connect(g);g.connect(this.sfx);n.start(t);n.stop(t+duration+.02);
+      g.gain.setValueAtTime(.29*Math.min(big,1.6),t);g.gain.exponentialRampToValueAtTime(.001,t+duration);n.connect(f);f.connect(g);g.connect(this.sfx);n.start(t);n.stop(t+duration+.02);
       const o=c.createOscillator(),og=c.createGain();o.frequency.setValueAtTime(type==='bossDeath'?85:115,t);o.frequency.exponentialRampToValueAtTime(24,t+duration);og.gain.setValueAtTime(.35,t);og.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(og);og.connect(this.sfx);o.start(t);o.stop(t+duration+.03);
     }
   }

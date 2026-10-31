@@ -7,6 +7,7 @@ import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {STAGES,WEAPONS,terrainAt,clamp,lerp,rng} from './core.js';
+import {WaveEffects} from './wave-effects.js';
 
 const dummy=new THREE.Object3D(),col=new THREE.Color();
 const v3=new THREE.Vector3();
@@ -56,7 +57,7 @@ export class Renderer {
       distant:new THREE.MeshStandardMaterial({color:0x08141d,metalness:.5,roughness:.75}),
     };
     this.makeSurfaceTextures();
-    this.makeStars();this.makeParticleSystem();this.makeProjectiles();this.makeForce();
+    this.makeStars();this.makeParticleSystem();this.makeProjectiles();this.makeForce();this.waveFX=new WaveEffects(this.world);
     this.playerGroup=new THREE.Group();this.world.add(this.playerGroup);
     this.heroGroup=new THREE.Group();this.scene.add(this.heroGroup);this.heroAngle=0;
     this.makeExhaust(this.playerGroup);this.makeExhaust(this.heroGroup);
@@ -163,15 +164,11 @@ export class Renderer {
     const core=new THREE.Mesh(new THREE.ConeGeometry(.09,1.0,12),new THREE.MeshBasicMaterial({color:new THREE.Color(2,4,6),transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));core.rotation.z=Math.PI/2;core.position.x=-1.15;group.add(core);
     group.userData.exhaust=[main,core];
   }
-  /** 上下を防御するビットと溜め撃ちの発光を作る。 */
+  /** 上下を防御するビットを作る。 */
   makeBits() {
     this.bits=[];for(let i=0;i<2;i++){
       const g=new THREE.Group(),ball=new THREE.Mesh(new THREE.IcosahedronGeometry(.2,1),this.materials.edge),ring=new THREE.Mesh(new THREE.TorusGeometry(.23,.028,6,24),this.materials.cyan);g.add(ball,ring);this.world.add(g);this.bits.push(g);
     }
-    this.charge=new THREE.Group();this.world.add(this.charge);
-    const material=new THREE.MeshBasicMaterial({color:new THREE.Color(.8,2,3),transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
-    this.chargeBall=new THREE.Mesh(new THREE.SphereGeometry(.25,16,12),material);this.charge.add(this.chargeBall);
-    this.chargeRing=new THREE.Mesh(new THREE.TorusGeometry(.5,.012,6,48),material);this.chargeRing.rotation.y=Math.PI/2;this.charge.add(this.chargeRing);
   }
   /** ステージ固有の背景、壁面、構造物を組み立てる。 */
   setStage(index) {
@@ -284,7 +281,7 @@ export class Renderer {
     if(e.type==='playerDeath'){this.burst(e.x,e.y,110,0x72c8ff,1.8);this.burst(e.x,e.y,80,0xff8b30,2);this.shake=.8;this.impact=1;}
     if(e.type==='bossDeath'){this.burst(e.x,e.y,260,0xffb660,3.8);this.burst(e.x-1,e.y,160,0x88caff,2.2);this.shake=1.2;this.impact=1.5;this.removeBoss();}
     if(e.type==='partBreak'){this.burst(e.x,e.y,70,0xffa03a,1.5);this.shake=.3;}
-    if(e.type==='wave'){this.burst(e.x+1,e.y,25,0x5cbbff,1);this.shake=Math.max(this.shake,.12+e.power*.07);this.impact=.3;}
+    if(e.type==='wave'){this.waveFX.fire(e);this.burst(e.x+1,e.y,48,0x67d4ff,1.1);this.shake=Math.max(this.shake,.16+e.power*.16);this.impact=.35+e.power*.15;}
     if(e.type==='hit')this.burst(e.x,e.y,4,0xffc77b,.3);
     if(e.type==='armour')this.burst(e.x,e.y,3,0x9fd7ff,.25);
     if(e.type==='block')this.burst(e.x,e.y,3,0xff913d,.25);
@@ -337,7 +334,6 @@ export class Renderer {
     this.forceGroup.visible=f.mode!=='none';this.forceGroup.position.set(f.x,f.y,.45);this.forceGroup.scale.setScalar(.8+p.level*.07);
     this.forceRings.forEach((o,i)=>{o.rotation.x+=dt*(i+1)*.7;o.rotation.z+=dt*(i+1);});
     this.bits.forEach((obj,i)=>{obj.visible=p.bits>i;obj.position.set(p.x,p.y+(i===0?1.05:-1.05),.5);obj.rotation.set(this.time,0,this.time*2);});
-    this.charge.visible=p.charge>.08&&this.playerGroup.visible;this.charge.position.set(p.x+.9,p.y,.6);this.charge.scale.setScalar(.2+p.charge*1.3);this.chargeRing.rotation.x=this.time*8;this.chargeRing.rotation.z=this.time*3;this.chargeBall.material.opacity=.3+p.charge*.6;
     const live=new Set();
     for(const e of game.enemies) {
       live.add(e.id);let obj=this.enemyMeshes.get(e.id);
@@ -374,12 +370,13 @@ export class Renderer {
   syncProjectiles(game) {
     let i=0;
     for(const s of [...game.shots,...game.bullets]) {
+      if(s.type==='wave')continue;
       if(i>=850)break;
-      const enemy=!!s.grazed||s.grazed===false,wave=s.type==='wave';
-      const color=enemy?(s.type==='heavy'?0xff2b76:0xff6839):wave?0x87cfff:s.type==='helix'?0xff5f39:s.type==='reflect'?0x3caeff:s.type==='crawler'?0xffb32e:s.type==='missile'?0xffaa52:0x91e1ff;
+      const enemy=!!s.grazed||s.grazed===false;
+      const color=enemy?(s.type==='heavy'?0xff2b76:0xff6839):s.type==='helix'?0xff5f39:s.type==='reflect'?0x3caeff:s.type==='crawler'?0xffb32e:s.type==='missile'?0xffaa52:0x91e1ff;
       dummy.position.set(s.x,s.y,1.05);dummy.rotation.set(0,0,Math.atan2(s.vy||0,s.vx||1));
-      dummy.scale.set(enemy?s.r*.8:wave?.95+(s.power||1)*.4:s.type==='missile'?.31:.32,enemy?s.r*.8:wave?s.r*.7:s.r*.65,enemy?s.r*.8:wave?s.r*.45:.09);dummy.updateMatrix();this.projectileMesh.setMatrixAt(i,dummy.matrix);this.projectileMesh.setColorAt(i,col.set(color).multiplyScalar(enemy?1.7:2.2));
-      dummy.position.x-=enemy?s.vx*.015:s.vx*.019;dummy.position.y-=enemy?s.vy*.015:(s.vy||0)*.019;dummy.scale.multiplyScalar(wave?1.5:1.8);if(!enemy)dummy.scale.x*=1.8;dummy.updateMatrix();this.trailMesh.setMatrixAt(i,dummy.matrix);this.trailMesh.setColorAt(i,col.set(color).multiplyScalar(1.1));i++;
+      dummy.scale.set(enemy?s.r*.8:s.type==='missile'?.31:.32,enemy?s.r*.8:s.r*.65,enemy?s.r*.8:.09);dummy.updateMatrix();this.projectileMesh.setMatrixAt(i,dummy.matrix);this.projectileMesh.setColorAt(i,col.set(color).multiplyScalar(enemy?1.7:2.2));
+      dummy.position.x-=enemy?s.vx*.015:s.vx*.019;dummy.position.y-=enemy?s.vy*.015:(s.vy||0)*.019;dummy.scale.multiplyScalar(1.8);if(!enemy)dummy.scale.x*=1.8;dummy.updateMatrix();this.trailMesh.setMatrixAt(i,dummy.matrix);this.trailMesh.setColorAt(i,col.set(color).multiplyScalar(1.1));i++;
     }
     this.projectileMesh.count=i;this.trailMesh.count=i;
     this.projectileMesh.instanceMatrix.needsUpdate=true;this.trailMesh.instanceMatrix.needsUpdate=true;
@@ -396,7 +393,6 @@ export class Renderer {
     this.heroGroup.scale.setScalar(hangar?1.3:1.15);
     this.heroGroup.userData.exhaust.forEach((o,i)=>{o.position.x=i===0?-4.5:-4;o.scale.set(3,2.5+Math.sin(this.time*35)*.3,3);});
     this.fill.position.set(9,2,6);this.fill.intensity=30;this.rim.color.set(0x69a9e1);
-    if(this.charge)this.charge.visible=false;
     this.titleRing.rotation.z+=dt*.004;
   }
   /** 描画フレームを進める。@param {Game|null} game ゲーム状態 @param {number} dt 秒 @param {string} view メニュー種別 */
@@ -406,6 +402,7 @@ export class Renderer {
     this.stars.rotation.y=Math.sin(this.time*.02)*.03;
     if(game){if(this.scenery)this.scenery.visible=true;this.syncGame(game,dt);this.fill.position.set(game.player.x+3,3,8);this.fill.intensity=35;}
     else this.syncTitle(dt,view);
+    this.waveFX.update(game,dt);
     const shake=this.settings.shake===false?0:this.shake;
     this.camera.position.set((Math.random()-.5)*shake*.35,(Math.random()-.5)*shake*.3,34);
     this.particles=this.particles.filter(p=>p.age<p.life);
@@ -413,7 +410,7 @@ export class Renderer {
     for(const p of this.particles){p.age+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.vx*=1-dt*1.5;p.vy*=1-dt*1.5;dummy.position.set(p.x,p.y,p.z);dummy.rotation.set(p.age*3,p.age*2,0);dummy.scale.setScalar(p.scale*Math.max(0,1-p.age/p.life));dummy.updateMatrix();this.particleMesh.setMatrixAt(i,dummy.matrix);this.particleMesh.setColorAt(i,col.set(p.color).multiplyScalar(2));i++;}
     this.particleMesh.count=i;this.particleMesh.instanceMatrix.needsUpdate=true;if(i)this.particleMesh.instanceColor.needsUpdate=true;
     this.grade.uniforms.time.value=this.time;this.grade.uniforms.impact.value=this.impact;this.grade.uniforms.drive.value=game?.driveTime>0?1:0;this.grade.uniforms.crt.value=this.settings.crt?1:0;
-    this.bloom.strength=game?.driveTime>0?.5:.3;
+    this.bloom.strength=game?.driveTime>0?.5:.3+this.waveFX.flash*.04;
     this.webgl.info.reset();this.composer.render();this.drawCalls=this.webgl.info.render.calls;
   }
 }

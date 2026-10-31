@@ -31,6 +31,7 @@ function mute(){audio.muted=!audio.muted;audio.apply();const btn=$('[data-action
 /** 画面の種類を変更し、UIを作り直す。 */
 function navigate(next){
   if(!booted)return;
+  audio.stopCharge();
   if(game&&next!=='play'&&next!=='pause')game.paused=true;
   screen=next;keys.clear();edges.clear();
   document.body.classList.toggle('in-game',!!game&&['play','pause','settings','help'].includes(next));
@@ -187,7 +188,7 @@ window.addEventListener('keydown',e=>{
   }
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
-window.addEventListener('blur',()=>{keys.clear();edges.clear();touch.fire=false;touch.rapid=false;});
+window.addEventListener('blur',()=>{keys.clear();edges.clear();touch.fire=false;touch.rapid=false;audio.stopCharge();});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&screen==='play'){visibilityPaused=true;pause();}else if(!document.hidden&&visibilityPaused){visibilityPaused=false;toast('安全のため一時停止しました。再開ボタンで戻れます。');}});
 
 /** 標準ゲームパッドからスティック・ボタンを読み込む。 */
@@ -258,6 +259,8 @@ function frame(ms){
   } else {edges.clear();accumulator=0;}
   toastTimer=Math.max(0,toastTimer-dt);bossTimer=Math.max(0,bossTimer-dt);
   if(announcement){announcement.time-=dt;if(announcement.time<=0)announcement=null;}
+  const charging=screen==='play'&&game?.mode==='playing'&&!game.paused&&game.player.fireWas;
+  audio.syncCharge(charging?game.player.charge:0,charging,game?.player.x||0);
   audio.tick();
   const showGame=game&&['play','pause','gameover','ending','settings','help','records'].includes(screen);
   renderer.render(showGame?game:null,dt,screen);
