@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-03",
+  "menu": "FLIGHT TRAINING → BOSS → ORIGIN",
+  "loadout": 3,
+  "freeFlight": true,
+  "action": "Xでフォースを射出。核への吸着後にHPの減少を確認。",
+  "url": "https://yawakihara.github.io/R-TYPE/",
+  "bossName": "ORIGIN / PHASE 02",
+  "hp": "7%",
+  "force": "FORCE / FREE FLIGHT",
+  "status": "収縮予告",
+  "consoleWarningsAndErrors": []
+}

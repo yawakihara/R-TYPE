@@ -52,6 +52,15 @@
 
 ## 主な処理経路
 
-タイトル・入力 → `src/main.js` → `Game.update`（`src/core.js`）→ 敵・地形・射撃・フォース・ボスの状態 → `Renderer.render`（`src/renderer.js`）と`AudioEngine`（`src/audio.js`）→ 画面と音声。
+タイトル・入力 → `src/main.js` → `Game.update`（`src/core.js`、ボス機構は`src/bosses.js`）→ 敵・地形・射撃・フォース・ボスの状態 → `Renderer.render`（`src/renderer.js`、専用ボス描画は`src/boss-visuals.js`）と`AudioEngine`（`src/audio.js`）→ 画面と音声。
 
 モデル制作は`tools/make_models.py` → `public/models/requiem.glb`および`art/requiem-assets.blend`。ビルドは`tools/build.mjs` → `dist`。公開はGitHub Actions → GitHub Pages。
+
+## 8体の専用ボスの改修・公開（2026-11-03）
+
+- 専用Blenderモデル、機構、核の開放条件、攻撃順序、部位破壊、後半の攻撃変化を8体それぞれに実装。制作経路は`tools/make_bosses.py` → `public/models/bosses.glb`と`art/requiem-bosses.blend`。
+- `npm test`は計39件合格、`npm run build`成功。無敵の正規操作パイロットによる道中込み8面とボス直行8連戦の進行、露出・装甲・再生・予告攻撃の当たり判定、描画資源の所有権を検証。
+- 実ブラウザーで8体の核露出と主砲・圧砕柱・レーザー格子の表示を確認。警告・エラー0件。RTX 5070 / IAB / HIGH / 1280×720の回転防衛機戦では60FPSを確認した。全場面・全端末の性能確認ではない。
+- GitHub Actions [41468150748](https://github.com/yawakihara/R-TYPE/actions/runs/41468150748)でテスト・ビルド・公開成功。公開HTMLは`20261103-bosses`。配布JavaScriptとボスGLBのSHA-256が公開物と一致。
+- 公開画面のボス選択からORIGINへ出撃し、[X]の実入力でフォースを送り、HPの減少と第2段階を確認した。
+- 詳細・実施範囲と残る確認事項は[BOSS_UPDATE.md](BOSS_UPDATE.md)、公開物の照合は[boss-publication-check.json](boss-publication-check.json)。

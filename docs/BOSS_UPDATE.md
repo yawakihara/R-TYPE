@@ -45,4 +45,8 @@
 
 ## 公開確認
 
-GitHub Pagesへの反映後、公開HTMLのバージョン、配布JavaScriptとボスGLBのSHA-256、公開画面のボス直行操作を確認する。結果は公開検証ファイルに記録する。
+- 公開コミット：`8e605dd190eb98e5d8b6b452487b9d4d9a8ae45b`。
+- [GitHub Actions 41468150748](https://github.com/yawakihara/R-TYPE/actions/runs/41468150748)：テスト・ビルド・Pagesデプロイ成功。
+- 公開ページHTTP 200、HTMLの `20261103-bosses` を確認。公開JavaScriptとボスGLBは、手元の `dist` とSHA-256がそれぞれ一致。[公開照合結果](boss-publication-check.json)。
+- 公開画面から「FLIGHT TRAINING」→「BOSS」→「ORIGIN」へ出撃。フリーフライトで [X] を実入力し、フォースの核への吸着、HP100%→97%→7%への減少、第2段階への移行を確認。公開タブの警告・エラーログは0件。[操作記録](boss-public-browser-check.json)。
+- 公開版の[ボス選択画面](screenshots/boss-select-public.png)と[始原核の戦闘画面](screenshots/boss-public.png)を保存。
