@@ -10,7 +10,7 @@ R-TYPEのゲームデザインに敬意を表した非公式のファン作品�
 
 ## 遊ぶ
 
-タイトルの「SORTIE」から難易度を選んで発進します。「FLIGHT TRAINING」では全ステージを自由に選べます。初めての場合はCADETがおすすめです。
+タイトルの「SORTIE」から難易度を選んで発進します。「FLIGHT TRAINING」では全ステージを自由に選べます。「BOSS / ボス直行」に切り替えると、各面のボスと直接対戦でき、ミス後もボス戦から再開します。撃破後は次のボスへ進みます。初めての場合はCADETがおすすめです。
 
 - 矢印 / WASD：移動
 - C：押している間、連射
@@ -31,26 +31,28 @@ R-TYPEのゲームデザインに敬意を表した非公式のファン作品�
 
 赤＝螺旋状の対空レーザー、青＝上下の地形で反射するレーザー、黄＝床や天井を這う対地レーザー。3段階まで成長します。Bは防御用ビット、Mは追尾ミサイル、Sは速度強化です。
 
-ボスの核には開閉があります。上下の砲台は個別に破壊できます。予兆線が出るビームは、発射前に射線から逃げてください。最終ボスの核はフォースの直接接触だけが有効です。
+ボス8体はそれぞれ専用の機構とBlenderモデルを持ちます。発光する部位の下の小さなバーが部位耐久です。戦艦は冷却装置2基、神経中枢は神経節3個の破壊が核の開放条件です。その他のボスでも部位破壊が攻撃を減らしたり開放時間を延ばしたりします。画面上部に現在の機構と攻略ヒントを表示します。予告線は照準時に固定され、1.4〜1.6秒後に主砲・圧砕柱・格子が作動します。最終ボスの核は露出時のフォース接触だけが有効です。
 
 50,000点、150,000点、以降150,000点ごとに残機が増えます。敵撃破とすれすれ回避でDRIVEを蓄積し、満タンなら約4.5秒の時間減速と高速チャージを使えます。
 
 ## 8つの戦場
 
-1. **DERELICT GATE / 廃墟の向こうへ**：軌道施設の残骸。装甲殻DOORKEEPER。
-2. **LIVING ABYSS / 脈打つ深淵**：生体の洞窟。増援を吐き出すGORGON。
-3. **SILENT COLOSSUS / 沈黙の巨大戦艦**：戦艦の船体と砲塔を越え、中枢炉へ。
-4. **IRON CATHEDRAL / 鉄の大聖堂**：工場の構造物と複数の予兆ビーム。
-5. **OSSUARY / 星の墓標**：骨の回廊と、蛇状の尾で戦場を覆うOUROBOROS。
-6. **NEURAL STORM / 記憶の迷宮**：神経の迷路と環状の神経弾。
-7. **EVENT HORIZON / 還らざる境界**：最終防衛線。多重攻撃のTHE ARBITER。
-8. **REQUIEM / 最後の鼓動**：フォースだけで破壊できる始原核ORIGIN。
+1. **DERELICT GATE / DOORKEEPER**：連装砲と冷却シャッターを持つ装甲門。砲塔を両方壊すと排熱の隙が延びます。
+2. **LIVING ABYSS / GORGON**：牙を開いて自機側へ急突進する捕食者。捕食後の口内が弱点。孵化嚢を壊すと幼体の増援を止められます。
+3. **SILENT COLOSSUS / COLOSSUS CORE**：長い電磁主砲と冷却フィンを持つ巨大戦艦。照準後に砲身が固定され、主砲を放射。上下の冷却装置を壊すと発射後に炉心が開きます。
+4. **IRON CATHEDRAL / JUDGEMENT**：油圧プレスと焼却柱を持つ要塞。予告された縦の帯を避け、圧盤が戻った時に核へ攻撃します。サーボを壊すと圧砕柱が減ります。
+5. **OSSUARY / OUROBOROS**：骨環・大顎・骨棘を持つ骨竜。骨弾の扇を放ち、身を縮めて突進。身をほどいた隙が弱点です。
+6. **NEURAL STORM / MNEMOSYNE**：神経の傘と7本の触手を持つ中枢。3個の神経節を壊すと弾幕が消え、シールドが停止。神経節はその後再生します。
+7. **EVENT HORIZON / THE ARBITER**：回転する光翼と多重レーザー格子を持つ防衛機。予告線の間へ移り、翼が停止した時に核を狙います。制御器を両方壊すと格子が減ります。
+8. **REQUIEM / ORIGIN**：動脈と開閉する外殻を持つ始原の心臓。心拍弾の後の拡張期にフォースを射出。核に届くと吸着し、拡張している間だけ損傷します。装備がなければ補給機が出現します。
 
-![生体洞窟のボス戦](screenshots/stage2-boss.jpg)
+![8体の専用Blender造形](screenshots/boss-lineup.png)
+
+[ボス改修の仕様と検証記録](BOSS_UPDATE.md)
 
 ## 表示・音響
 
-Blender 5.2.2で制作した9種類のモデルをglTF 2.0で読み込みます。金属とセラミックのPBR材質、環境反射、複数光源、ブルーム、装甲の表面テクスチャ、破片・スパーク、奥行きのある構造物をThree.jsで描画します。編集用の[Blenderファイル](../art/requiem-assets.blend)と[制作スクリプト](../tools/make_models.py)を同梱しています。
+Blender 5.2.2で制作した9種類の基本モデルと8体の専用ボスをglTF 2.0で読み込みます。金属とセラミックのPBR材質、環境反射、複数光源、ブルーム、装甲・骨・筋組織の表面テクスチャ、破片・スパーク、奥行きのある構造物をThree.jsで描画します。編集用の[基本モデル](../art/requiem-assets.blend)・[ボス一覧](../art/requiem-bosses.blend)と、[基本制作スクリプト](../tools/make_models.py)・[ボス制作スクリプト](../tools/make_bosses.py)を同梱しています。
 
 全11曲をWeb Audioで合成します。MODERNとARCADE FMの音源切替、残響、ステレオディレイ、ドラム、専用効果音を実装しています。SOUND ARCHIVEのEXPORT / WAVから、選択曲の32秒ステレオWAVを保存できます。
 
@@ -81,6 +83,7 @@ node tools/serve.mjs --dist
 
 ```powershell
 & 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe' --background --factory-startup --python tools/make_models.py
+& 'C:\Program Files\Blender Foundation\Blender 5.2\blender.exe' --background --factory-startup --python tools/make_bosses.py
 npm run build
 ```
 

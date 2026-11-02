@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Game,STAGES,terrainAt,obstaclesFor,rng} from '../src/core.js';
+import {pilotInput} from './boss-pilot.mjs';
 
 /** 指定時間だけ60Hzで進める。 */
 function run(g,seconds,input={}){for(let i=0;i<Math.ceil(seconds*60);i++)g.update(1/60,typeof input==='function'?input(g,i):input);}
@@ -56,20 +57,18 @@ test('DRIVEは満タンで発動し、クラシックでは発動しない',()=>
   const classic=new Game({classic:true});classic.drive=100;assert.equal(classic.activateDrive(),false);
 });
 test('最終ボスの核は波動砲を防ぎ、開いた時のフォース接触で傷つく',()=>{
-  const g=new Game({stage:7,practice:true});g.spawnBoss();const b=g.boss;b.x=9;b.age=4;b.y=0;b.open=true;const hp=b.hp;
-  g.player.charge=1;g.player.x=5.8;g.player.y=0;g.shoot(true);g.updateShots(1/60);assert.equal(b.hp,hp);
-  g.force.mode='free';g.force.x=b.x-1.65;g.force.y=0;g.updateBoss(1/60);assert.ok(b.hp<hp);
+  const g=new Game({stage:7,practice:true,bossPractice:true});g.debugInvincible=true;
+  while(!g.boss.open)g.updateBoss(1/60);
+  const b=g.boss,hp=b.hp;
+  g.player.charge=1;g.player.x=b.x-3.1;g.player.y=b.y;g.shoot(true);g.updateShots(1/60);assert.equal(b.hp,hp);
+  g.force.mode='free';g.force.x=b.x-1.65;g.force.y=b.y;g.updateBoss(1/60);assert.ok(b.hp<hp);
 });
-test('全8ステージを同じ本体・正規の射撃とフォース操作で通しクリアできる',()=>{
+test('無敵の操作ボットが正規の部位破壊・射撃・フォース操作で全8面を通しクリアする',()=>{
   const g=new Game({practice:true,difficulty:'cadet'});g.debugInvincible=true;
   const equip=()=>{for(let j=0;j<3;j++)g.collect('red');g.collect('missile');g.collect('missile');g.collect('bit');g.collect('bit');g.force.mode='front';g.force.x=g.player.x+1.6;};
   equip();let stage=0,frame=0;
   while(frame<60*1600&&g.mode!=='victory'){
-    const b=g.boss,p=g.player;
-    let targetY=b?b.y:0;
-    const item=g.items.find(i=>i.x<p.x+6&&i.x>p.x-2);if(!b&&item)targetY=item.y;
-    const force=!!b&&g.stage===7&&(g.force.mode==='front'||g.force.mode==='rear')&&b.open;
-    g.update(1/60,{x:p.x<-8?.4:p.x>-7.6?-.4:0,y:clampTest((targetY-p.y)*3),rapid:!b||g.stage===7,fire:!!b&&g.stage!==7&&frame%115<103,force});
+    g.update(1/60,pilotInput(g,frame));
     if(g.stage!==stage){stage=g.stage;equip();}
     if(frame%600===0)assert.ok(Number.isFinite(g.player.x)&&Number.isFinite(g.score));
     g.drainEvents();frame++;
@@ -77,4 +76,3 @@ test('全8ステージを同じ本体・正規の射撃とフォース操作で�
   assert.equal(g.mode,'victory',`Stopped at stage ${g.stage+1}, t=${g.time}, boss hp=${g.boss?.hp}, force=${g.force.mode}`);
   assert.equal(g.stage,7);assert.ok(g.kills>100);assert.ok(g.score>100000);
 });
-function clampTest(n){return Math.max(-1,Math.min(1,n));}

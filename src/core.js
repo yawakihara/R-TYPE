@@ -1,13 +1,15 @@
+import {createBoss,updateBossMechanics,hitBoss} from './bosses.js';
+
 /** R-TYPEらしい攻略を担う、描画・音声に依存しない固定時間刻みのゲーム本体。 */
 export const STAGES = [
-  {name:'DERELICT GATE', ja:'廃墟の向こうへ', theme:'station', boss:'DOORKEEPER', bossJa:'装甲殻・ドアキーパー', duration:82, color:0x72bbd3, fog:0x07141b, bg:0x02080e, track:0, bossType:'sentinel'},
-  {name:'LIVING ABYSS', ja:'脈打つ深淵', theme:'organic', boss:'GORGON', bossJa:'生体兵器・ゴルゴン', duration:88, color:0x91bc83, fog:0x11190e, bg:0x050b07, track:1, bossType:'leviathan'},
-  {name:'SILENT COLOSSUS', ja:'沈黙の巨大戦艦', theme:'battleship', boss:'COLOSSUS CORE', bossJa:'巨大戦艦・中枢炉', duration:92, color:0xa6b9cc, fog:0x09141e, bg:0x02070e, track:2, bossType:'dreadnought'},
-  {name:'IRON CATHEDRAL', ja:'鉄の大聖堂', theme:'foundry', boss:'JUDGEMENT', bossJa:'機動要塞・ジャッジメント', duration:88, color:0xe4a473, fog:0x1b100c, bg:0x0b0503, track:3, bossType:'sentinel'},
-  {name:'OSSUARY', ja:'星の墓標', theme:'bones', boss:'OUROBOROS', bossJa:'骨竜・ウロボロス', duration:90, color:0xb6a1c9, fog:0x150c1e, bg:0x07030e, track:4, bossType:'serpent'},
-  {name:'NEURAL STORM', ja:'記憶の迷宮', theme:'neural', boss:'MNEMOSYNE', bossJa:'神経網・ムネモシュネ', duration:90, color:0x8490e4, fog:0x0e0b23, bg:0x04020c, track:5, bossType:'leviathan'},
-  {name:'EVENT HORIZON', ja:'還らざる境界', theme:'citadel', boss:'THE ARBITER', bossJa:'最終防衛機・アービター', duration:95, color:0x81d7d0, fog:0x081917, bg:0x020908, track:6, bossType:'sentinel'},
-  {name:'REQUIEM', ja:'最後の鼓動', theme:'heart', boss:'ORIGIN', bossJa:'始原核・オリジン', duration:90, color:0xe69b89, fog:0x210c12, bg:0x0b0205, track:7, bossType:'heart'},
+  {name:'DERELICT GATE', ja:'廃墟の向こうへ', theme:'station', boss:'DOORKEEPER', bossJa:'装甲殻・ドアキーパー', duration:82, color:0x72bbd3, fog:0x07141b, bg:0x02080e, track:0, bossType:'doorkeeper'},
+  {name:'LIVING ABYSS', ja:'脈打つ深淵', theme:'organic', boss:'GORGON', bossJa:'生体兵器・ゴルゴン', duration:88, color:0x91bc83, fog:0x11190e, bg:0x050b07, track:1, bossType:'gorgon'},
+  {name:'SILENT COLOSSUS', ja:'沈黙の巨大戦艦', theme:'battleship', boss:'COLOSSUS CORE', bossJa:'巨大戦艦・中枢炉', duration:92, color:0xa6b9cc, fog:0x09141e, bg:0x02070e, track:2, bossType:'colossus'},
+  {name:'IRON CATHEDRAL', ja:'鉄の大聖堂', theme:'foundry', boss:'JUDGEMENT', bossJa:'機動要塞・ジャッジメント', duration:88, color:0xe4a473, fog:0x1b100c, bg:0x0b0503, track:3, bossType:'judgement'},
+  {name:'OSSUARY', ja:'星の墓標', theme:'bones', boss:'OUROBOROS', bossJa:'骨竜・ウロボロス', duration:90, color:0xb6a1c9, fog:0x150c1e, bg:0x07030e, track:4, bossType:'ouroboros'},
+  {name:'NEURAL STORM', ja:'記憶の迷宮', theme:'neural', boss:'MNEMOSYNE', bossJa:'神経網・ムネモシュネ', duration:90, color:0x8490e4, fog:0x0e0b23, bg:0x04020c, track:5, bossType:'mnemosyne'},
+  {name:'EVENT HORIZON', ja:'還らざる境界', theme:'citadel', boss:'THE ARBITER', bossJa:'最終防衛機・アービター', duration:95, color:0x81d7d0, fog:0x081917, bg:0x020908, track:6, bossType:'arbiter'},
+  {name:'REQUIEM', ja:'最後の鼓動', theme:'heart', boss:'ORIGIN', bossJa:'始原核・オリジン', duration:90, color:0xe69b89, fog:0x210c12, bg:0x0b0205, track:7, bossType:'origin'},
 ];
 export const WEAPONS = {
   red:{name:'HELIX', ja:'対空レーザー', color:0xff613b},
@@ -21,7 +23,6 @@ export const DIFFICULTIES = {
 };
 export const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 export const lerp = (a,b,t) => a+(b-a)*t;
-const TAU=Math.PI*2;
 
 /** シードを固定して敵配置・演出を再現できる乱数生成器。@param {number} seed 初期値 */
 export function rng(seed=1987) { return () => { seed|=0;seed=seed+0x6d2b79f5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -71,6 +72,7 @@ export class Game {
     this.events=[];this.nextId=1;this.combo=0;this.comboTimer=0;this.bestCombo=0;this.drive=35;this.driveTime=0;
     this.mode='playing';this.modeTime=0;this.paused=false;this.debugInvincible=false;
     this.startStage(this.stage);
+    if(this.options.bossPractice)this.beginBossPractice();
   }
   /** 通知をキューへ追加する。@param {string} type 種別 @param {object} data 付随情報 */
   emit(type,data={}) { this.events.push({...data,type}); }
@@ -93,6 +95,7 @@ export class Game {
     this.startStage(this.stage+1);
     Object.assign(this.player,{level:old.level,weapon:old.weapon,missiles:old.missiles,bits:old.bits,speed:old.speed,maxSpeed:old.maxSpeed});
     if(f) Object.assign(this.force,{mode:'front',level:this.player.level,x:this.player.x+1.7,y:0});
+    if(this.options.bossPractice)this.beginBossPractice();
   }
   /** チェックポイントで敵と装備を初期化し、ゲームオーバー後も復帰可能にする。 */
   respawn() {
@@ -107,6 +110,12 @@ export class Game {
       Object.assign(this.force,{mode:'front',level:this.player.level,x:-7.3,y:0});
     }
     this.mode='playing';this.modeTime=0;this.driveTime=0;this.emit('respawn');
+    if(this.options.bossPractice)this.beginBossPractice();
+  }
+  /** ボス直行訓練を開始する。再出撃と次面でもボス戦から再開する。 */
+  beginBossPractice(){
+    this.time=STAGES[this.stage].duration;this.scroll=this.time*3.2;
+    this.spawnBoss();this.boss.x=this.stage===2?10.6:10;
   }
   /** 残機を補充して直前のチェックポイントから継続する。 */
   continueGame() { this.continues++;this.lives=this.diff.lives;this.score=Math.floor(this.score/10)*10+Math.min(9,this.continues);this.respawn(); }
@@ -203,61 +212,12 @@ export class Game {
   }
   /** 弱点開閉・部位破壊を持つ大型ボスを出現させる。 */
   spawnBoss() {
-    const index=this.stage,type=STAGES[index].bossType;
-    const hp=100+index*25;
-    this.boss={id:this.nextId++,type,x:21,y:0,age:0,hp,maxHp:hp,open:false,cooldown:2,specialCd:5.8,hazards:[],phase:0,flash:0,parts:[{id:0,ox:-.3,oy:2.6,hp:22+index*3,maxHp:22+index*3},{id:1,ox:-.3,oy:-2.6,hp:22+index*3,maxHp:22+index*3}]};
-    this.enemies=this.enemies.filter(e=>e.type==='carrier');this.bullets=[];this.emit('boss',{name:STAGES[index].boss,ja:STAGES[index].bossJa});
+    this.boss=createBoss(this.stage,this.nextId++);
+    this.enemies=this.enemies.filter(e=>e.type==='carrier');this.bullets=[];this.emit('boss',{name:STAGES[this.stage].boss,ja:STAGES[this.stage].bossJa});
   }
   /** ボス本体、砲台、予兆付き攻撃を更新する。 */
   updateBoss(dt) {
-    const b=this.boss;if(!b)return;
-    b.age+=dt;b.x=lerp(b.x,10.3,Math.min(1,dt*.9));b.y=Math.sin(b.age*.55)*1.4;
-    b.phase=b.hp/b.maxHp<.45?1:0;b.flash=Math.max(0,b.flash-dt);
-    const period=b.phase?5.3:7.3;
-    b.open=b.age>3&&(b.age%period>period*.39);
-    b.cooldown-=dt;
-    if(b.cooldown<=0&&b.age>3) {
-      b.cooldown=(b.phase?.65:1.15)/this.diff.rate;
-      const count=3+this.stage%3+(b.phase?2:0);
-      this.aimed(b.x-2,b.y,count,.22,4.5+this.stage*.15);
-      if(b.phase) for(let i=0;i<8;i++) this.enemyBullet(b.x-1,b.y,b.age*.5+i*TAU/8,3.5,'heavy');
-      for(const part of b.parts) if(part.hp>0) this.aimed(b.x+part.ox-1,b.y+part.oy,2,.14,5.4);
-      this.emit('bossFire');
-    }
-    b.specialCd-=dt;
-    if(b.specialCd<=0&&b.age>4) {
-      b.specialCd=(b.phase?3.8:5.6);
-      if(this.stage===0) {
-        for(let i=0;i<9;i++)this.enemyBullet(b.x-1,b.y,Math.PI-.85+i*.21,3.3,'heavy');
-      } else if(this.stage===1) {
-        for(const side of [-1,1])this.spawn('organism',b.x-1,b.y+side*1.8,{hp:4,vx:-4.1,cooldown:2.5});
-      } else if([2,3,6].includes(this.stage)) {
-        const y=clamp(this.player.y,-4.9,4.9);
-        const ys=this.stage===3?[y-1.8,y+1.8]:this.stage===6?[y,y>0?y-3.5:y+3.5]:[y];
-        for(const target of ys)b.hazards.push({id:this.nextId++,y:target,age:0,warn:1.15,duration:1.75,r:.3});
-        this.emit('telegraph');
-      } else if(this.stage===4) {
-        for(let i=0;i<13;i++)this.enemyBullet(b.x-2,b.y,Math.PI+(i-6)*.13,3.2+i*.12,'heavy');
-      } else if(this.stage===5) {
-        for(let i=0;i<18;i++)this.enemyBullet(b.x-1,b.y,b.age*.5+i*TAU/18,3.8,'heavy');
-      } else {
-        for(let i=0;i<12;i++)this.enemyBullet(b.x-1,b.y,Math.PI-.9+i*.16,2.7,'heavy');
-        this.emit('heartbeat');
-      }
-    }
-    for(const hazard of b.hazards){hazard.age+=dt;if(hazard.age>hazard.warn&&hazard.age<hazard.duration&&this.player.x<b.x-1&&Math.abs(this.player.y-hazard.y)<hazard.r+.16)this.die();}
-    b.hazards=b.hazards.filter(h=>h.age<h.duration);
-    if(b.type==='serpent')for(let i=1;i<16;i++){
-      const x=b.x+1.2-i*.46,y=b.y+Math.sin(b.age*1.7-i*.45)*(1+i*.13);
-      if(Math.hypot(this.player.x-x,this.player.y-y)<.42)this.die();
-    }
-    const f=this.force;
-    if(b.open&&f.mode!=='none'&&Math.hypot(f.x-(b.x-1.65),f.y-b.y)<1.3) {
-      b.hp-=dt*(this.stage===7?32:16);b.flash=.06;
-      if(f.mode==='launch'||f.mode==='free') {f.mode='free';f.x=b.x-1.65;f.y=lerp(f.y,b.y,dt*5);}
-    }
-    if(Math.hypot(this.player.x-b.x,this.player.y-b.y)<2.5) this.die();
-    if(b.hp<=0) this.defeatBoss();
+    updateBossMechanics(this,dt);
   }
   /** ボス撃破で弾を消去し、次ステージへの演出へ進む。 */
   defeatBoss() {
@@ -397,21 +357,7 @@ export class Game {
           if(!s.pierce){s.dead=true;break;}
         }
       }
-      const b=this.boss;
-      if(b&&!s.dead) {
-        let partHit=false;
-        for(const part of b.parts) if(part.hp>0&&Math.hypot(s.x-(b.x+part.ox-.5),s.y-(b.y+part.oy))<.8+s.r) {
-          if(s.hit?.has('p'+part.id))continue;
-          part.hp-=s.damage;s.hit?.add('p'+part.id);if(!s.pierce)s.dead=true;partHit=true;
-          this.emit('hit',{x:b.x+part.ox-.5,y:b.y+part.oy});
-          if(part.hp<=0){this.emit('partBreak',{x:b.x+part.ox,y:b.y+part.oy});this.addScore(2000);}
-        }
-        if(!partHit&&!s.hit?.has('boss')&&Math.abs(s.x-(b.x-1.65))<1.1+s.r&&Math.abs(s.y-b.y)<.9+s.r) {
-          if(b.open&&this.stage!==7){b.hp-=s.damage;s.hit?.add('boss');b.flash=.08;this.hits++;this.emit('hit',{x:b.x-1.65,y:b.y});}
-          else this.emit('armour',{x:s.x,y:s.y});
-          if(!s.pierce||!b.open||this.stage===7)s.dead=true;
-        }
-      }
+      hitBoss(this,s);
     }
     this.shots=this.shots.filter(s=>!s.dead&&s.age<s.life&&s.x>-21&&s.x<23&&Math.abs(s.y)<12);
     if(this.boss&&this.boss.hp<=0)this.defeatBoss();

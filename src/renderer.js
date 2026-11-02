@@ -9,6 +9,8 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {STAGES,WEAPONS,terrainAt,clamp,lerp,rng} from './core.js';
 import {WaveEffects} from './wave-effects.js';
 import {CombatEffects} from './combat-effects.js';
+import {BOSS_PROFILES} from './bosses.js';
+import {BossVisuals} from './boss-visuals.js';
 
 const dummy=new THREE.Object3D(),col=new THREE.Color();
 const v3=new THREE.Vector3();
@@ -70,12 +72,17 @@ export class Renderer {
   /** Blenderで作成したテンプレートを読み込む。@param {Function} progress 進捗通知 */
   async load(progress=()=>{}) {
     const loader=new GLTFLoader();
-    const gltf=await loader.loadAsync(new URL('models/requiem.glb',document.baseURI).href,p=>progress(p.total?p.loaded/p.total:.5));
+    const loaded=[0,0],report=(i,p)=>{loaded[i]=p.total?p.loaded/p.total:.5;progress(loaded[0]*.4+loaded[1]*.6);};
+    const [gltf,bosses]=await Promise.all([
+      loader.loadAsync(new URL('models/requiem.glb',document.baseURI).href,p=>report(0,p)),
+      loader.loadAsync(new URL('models/bosses.glb',document.baseURI).href,p=>report(1,p)),
+    ]);
     this.templates={};
     for(const name of ['r9','scout','interceptor','carrier','turret','organism','sentinel','leviathan','dreadnought']) {
       const root=gltf.scene.getObjectByName(name);if(!root)throw new Error('Missing Blender asset: '+name);this.templates[name]=root;
       root.traverse(obj=>{if(obj.isMesh){obj.castShadow=false;obj.receiveShadow=false;obj.frustumCulled=true;}});
     }
+    for(const p of BOSS_PROFILES){const name='boss_'+p.id,root=bosses.scene.getObjectByName(name);if(!root)throw new Error('Missing Blender boss: '+name);this.templates[name]=root;}
     this.templates.leviathan.traverse(obj=>{if(obj.isMesh)for(const m of (Array.isArray(obj.material)?obj.material:[obj.material])){
       if(m.name==='Alien muscular tissue')this.materials.flesh.copy(m);
       if(m.name==='Calcified exoskeleton')this.materials.bone.copy(m);
@@ -241,34 +248,13 @@ export class Renderer {
   /** ボスと独立した予兆ビームを同時に片付ける。 */
   removeBoss(){
     if(!this.bossGroup)return;
-    for(const beam of this.bossGroup.userData.beams||[]){this.world.remove(beam);beam.material.dispose();}
-    this.world.remove(this.bossGroup);this.bossGroup=null;
+    this.bossVisuals.dispose();this.bossVisuals=null;this.bossGroup=null;
   }
   /** ボスの装甲、開閉する外殻、独立した砲台を作る。 */
   makeBoss(b) {
     this.removeBoss();
-    const g=new THREE.Group();this.world.add(g);this.bossGroup=g;this.bossId=b.id;
-    const model=b.type==='serpent'?'leviathan':b.type==='heart'?'leviathan':b.type;
-    const body=this.clone(model);body.scale.setScalar(model==='dreadnought'?1.6:1.25);g.add(body);g.userData.body=body;
-    if(b.type==='heart')body.scale.set(1.3,1.8,1.4);
-    const core=new THREE.Mesh(new THREE.SphereGeometry(.65,24,16),new THREE.MeshStandardMaterial({color:0xff9c62,emissive:0xff2612,emissiveIntensity:2.4,metalness:.2,roughness:.25}));core.position.set(-1.65,0,.6);g.add(core);g.userData.core=core;
-    const wire=new THREE.Mesh(new THREE.TorusKnotGeometry(.5,.06,64,6,2,3),this.materials.bone);core.add(wire);wire.userData.ownGeometry=true;
-    g.userData.shutters=[];
-    for(const side of [-1,1]){
-      const panel=new THREE.Group();panel.position.set(-1.65,0,.65);
-      const shield=new THREE.Mesh(this.geometry.sphere,b.type==='sentinel'||b.type==='dreadnought'?this.materials.edge:this.materials.flesh);shield.position.y=side*.48;shield.scale.set(.85,.55,.44);panel.add(shield);g.add(panel);g.userData.shutters.push({panel,side});
-    }
-    g.userData.parts=[];
-    for(const part of b.parts){const cannon=this.clone('turret');cannon.scale.set(.95,part.oy>0?-.95:.95,.95);cannon.position.set(part.ox-.5,part.oy,.5);g.add(cannon);g.userData.parts.push(cannon);}
-    g.userData.tail=[];
-    if(['leviathan','serpent','heart'].includes(b.type))for(let i=0;i<16;i++){
-      const joint=new THREE.Group();const bone=new THREE.Mesh(this.geometry.sphere,i%2?this.materials.flesh:this.materials.bone);bone.scale.set(.4,.55,.45);joint.add(bone);g.add(joint);g.userData.tail.push(joint);
-      const thorn=new THREE.Mesh(new THREE.ConeGeometry(.17,.7,6),this.materials.bone);thorn.position.y=.65;thorn.userData.ownGeometry=true;joint.add(thorn);
-    }
-    g.userData.beams=[];
-    for(let i=0;i<3;i++){
-      const beam=new THREE.Mesh(this.geometry.box,new THREE.MeshBasicMaterial({color:0xff5935,transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));beam.visible=false;this.world.add(beam);g.userData.beams.push(beam);
-    }
+    this.bossVisuals=new BossVisuals(this.world,this.clone('boss_'+b.type),b);
+    this.bossGroup=this.bossVisuals.group;this.bossId=b.id;
   }
   /** スパーク・破片を生成する。@param {number} x 横位置 @param {number} y 縦位置 @param {number} count 個数 @param {number} color 色 @param {number} size 規模 */
   burst(x,y,count=18,color=0xffa04e,size=1) {
@@ -285,6 +271,8 @@ export class Renderer {
     if(e.type==='playerDeath'){this.burst(e.x,e.y,110,0x72c8ff,1.8);this.burst(e.x,e.y,80,0xff8b30,2);this.shake=.8;this.impact=1;}
     if(e.type==='bossDeath'){this.combatFX.explode(e,true);this.burst(e.x,e.y,260,0xffb660,3.8);this.burst(e.x-1,e.y,160,0x88caff,2.2);this.shake=1.2;this.impact=1.5;this.removeBoss();}
     if(e.type==='partBreak'){this.combatFX.explode({...e,size:1.5});this.burst(e.x,e.y,70,0xffa03a,1.5);this.shake=.3;}
+    if(e.type==='shieldBreak'){this.burst(e.x,e.y,75,0x8baeff,1.5);this.shake=.25;this.impact=.35;}
+    if(e.type==='bossPhase'){this.burst(e.x,e.y,60,0xff6852,1.4);this.shake=.3;this.impact=.3;}
     if(e.type==='wave'){this.waveFX.fire(e);this.burst(e.x+1,e.y,48,0x67d4ff,1.1);this.shake=Math.max(this.shake,.16+e.power*.16);this.impact=.35+e.power*.15;}
     if(e.type==='hit'){this.combatFX.hit(e);this.burst(e.x,e.y,8,0xffc77b,.4);}
     if(e.type==='armour')this.burst(e.x,e.y,3,0x9fd7ff,.25);
@@ -366,12 +354,7 @@ export class Renderer {
     for(const [id,obj]of this.itemMeshes)if(!itemLive.has(id)){this.world.remove(obj);obj.children[0].geometry.dispose();obj.children[0].material.dispose();obj.children[1].geometry.dispose();this.itemMeshes.delete(id);}
     if(game.boss) {
       const b=game.boss;if(this.bossId!==b.id||!this.bossGroup)this.makeBoss(b);
-      const obj=this.bossGroup;obj.position.set(b.x,b.y,-.1);obj.userData.body.rotation.x=Math.sin(b.age*.6)*.06;
-      obj.userData.core.scale.setScalar(1+Math.sin(b.age*7)*.045);obj.userData.core.material.emissiveIntensity=b.flash>0?7:b.open?3:.5;
-      for(const {panel,side}of obj.userData.shutters)panel.position.y=lerp(panel.position.y,b.open?side*1.0:0,dt*5);
-      obj.userData.parts.forEach((o,i)=>o.visible=b.parts[i].hp>0);
-      obj.userData.tail.forEach((o,i)=>{o.position.set(1.2+(b.type==='serpent'?-1:1)*i*.46,Math.sin(b.age*1.7-i*.45)*(1+i*.13),-.3);o.scale.setScalar(1.5-i*.062);o.rotation.z=Math.cos(b.age*1.7-i*.45)*.4;});
-      obj.userData.beams.forEach((o,i)=>{const h=b.hazards[i];o.visible=!!h;if(h){const active=h.age>h.warn;o.position.set((b.x-2-18)/2,h.y,1.2);o.scale.set(b.x-2+18,active?h.r*2:.025,.06);o.material.opacity=active?.85:.25+Math.sin(this.time*18)*.14;}});
+      this.bossVisuals.update(b,dt);
     } else if(this.bossGroup){this.removeBoss();}
     this.syncProjectiles(game);
     if(this.playerGroup.visible&&Math.random()<.6)this.particles.push({x:p.x-.9,y:p.y,z:.4,vx:-5,vy:0,vz:0,age:0,life:.25,scale:.5,color:0x339eff});

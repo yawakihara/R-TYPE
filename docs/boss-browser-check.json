@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-03",
+  "build": "bosses",
+  "checks": [
+    {
+      "stage": 1,
+      "pose": "exposed",
+      "result": "ST 1 / doorkeeper / playing\nvent / OPEN true / PHASE 0\nHP 130.0 / PARTS 20,20\nHAZARDS 0 / BULLETS 15\nDRAW 241 / GEOMETRY 88 / TEXTURES 25\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 2,
+      "pose": "exposed",
+      "result": "ST 2 / gorgon / playing\ndigest / OPEN true / PHASE 0\nHP 160.0 / PARTS 23,23\nHAZARDS 0 / BULLETS 9\nDRAW 227 / GEOMETRY 147 / TEXTURES 37\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 3,
+      "pose": "exposed",
+      "result": "ST 3 / colossus / playing\ncool / OPEN true / PHASE 0\nHP 200.0 / PARTS 0,0\nHAZARDS 0 / BULLETS 10\nDRAW 221 / GEOMETRY 153 / TEXTURES 37\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 4,
+      "pose": "exposed",
+      "result": "ST 4 / judgement / playing\nretract / OPEN true / PHASE 0\nHP 210.0 / PARTS 26,26\nHAZARDS 0 / BULLETS 15\nDRAW 216 / GEOMETRY 181 / TEXTURES 38\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 5,
+      "pose": "exposed",
+      "result": "ST 5 / ouroboros / playing\nuncoil / OPEN true / PHASE 0\nHP 230.0 / PARTS 26,26\nHAZARDS 0 / BULLETS 22\nDRAW 207 / GEOMETRY 226 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 6,
+      "pose": "exposed",
+      "result": "ST 6 / mnemosyne / playing\noverload / OPEN true / PHASE 0\nHP 210.0 / PARTS 0,0,0\nHAZARDS 0 / BULLETS 8\nDRAW 235 / GEOMETRY 281 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 7,
+      "pose": "exposed",
+      "result": "ST 7 / arbiter / playing\nstall / OPEN true / PHASE 0\nHP 250.0 / PARTS 30,30\nHAZARDS 0 / BULLETS 19\nDRAW 234 / GEOMETRY 273 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 8,
+      "pose": "exposed",
+      "result": "ST 8 / origin / playing\ndiastole / OPEN true / PHASE 0\nHP 300.0 / PARTS 32,32\nHAZARDS 0 / BULLETS 49\nDRAW 218 / GEOMETRY 327 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 3,
+      "pose": "attack",
+      "result": "ST 3 / colossus / playing\ncannon / OPEN false / PHASE 0\nHP 200.0 / PARTS 28,28\nHAZARDS 1 / BULLETS 16\nDRAW 246 / GEOMETRY 299 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 4,
+      "pose": "attack",
+      "result": "ST 4 / judgement / playing\ncrush / OPEN false / PHASE 0\nHP 210.0 / PARTS 26,26\nHAZARDS 2 / BULLETS 12\nDRAW 220 / GEOMETRY 299 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    },
+    {
+      "stage": 7,
+      "pose": "attack",
+      "result": "ST 7 / arbiter / playing\nlattice / OPEN false / PHASE 0\nHP 250.0 / PARTS 30,30\nHAZARDS 4 / BULLETS 22\nDRAW 243 / GEOMETRY 298 / TEXTURES 39\nANGLE (NVIDIA, NVIDIA GeForce RTX 5070 (0x00002F04) Direct3D11 vs_5_0 ps_5_0, D3D11)"
+    }
+  ],
+  "consoleWarningsAndErrors": []
+}

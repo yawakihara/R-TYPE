@@ -248,6 +248,10 @@ export class AudioEngine {
     if(type==='playerDeath'||type==='stage'||type==='gameover'||type==='victory')this.stopCharge(t);
     if(type==='shot'&&t-this.lastShot<.095)return;
     if(type==='shot')this.lastShot=t;
+    const mechanism={telegraph:[720,310,.48,.1,'triangle'],bossPhase:[58,105,.85,.18,'sawtooth'],shieldBreak:[1400,65,.55,.18,'sine'],heartbeat:[58,30,.25,.22,'sine'],bossFire:[92,35,.13,.04,'triangle']}[type];
+    if(mechanism){
+      const [a,b,d,v,shape]=mechanism,o=c.createOscillator(),g=c.createGain();o.type=shape;o.frequency.setValueAtTime(a,t);o.frequency.exponentialRampToValueAtTime(b,t+d);g.gain.setValueAtTime(.001,t);g.gain.linearRampToValueAtTime(v,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g);g.connect(this.sfx);o.start(t);o.stop(t+d+.03);return;
+    }
     const spec={shot:[950,290,.09,.045,'square'],forceLaunch:[240,70,.34,.17,'sawtooth'],forceRecall:[120,630,.3,.1,'sine'],forceDock:[600,1200,.14,.1,'sine'],pickup:[650,1600,.24,.17,'sine'],extend:[550,1800,.45,.2,'sine'],drive:[55,260,.8,.26,'sawtooth'],hit:[180,55,.065,.06,'square'],armour:[1800,450,.045,.028,'triangle'],block:[1400,600,.04,.025,'sine'],graze:[1000,1400,.04,.02,'sine'],missile:[180,80,.18,.07,'sawtooth'],ui:[800,1050,.055,.04,'sine']}[type];
     if(spec) {
       const [a,b,d,v,shape]=spec,o=c.createOscillator(),g=c.createGain(),p=c.createStereoPanner();
