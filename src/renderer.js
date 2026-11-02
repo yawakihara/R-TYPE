@@ -8,6 +8,7 @@ import {ShaderPass} from 'three/addons/postprocessing/ShaderPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {STAGES,WEAPONS,terrainAt,clamp,lerp,rng} from './core.js';
 import {WaveEffects} from './wave-effects.js';
+import {CombatEffects} from './combat-effects.js';
 
 const dummy=new THREE.Object3D(),col=new THREE.Color();
 const v3=new THREE.Vector3();
@@ -57,7 +58,7 @@ export class Renderer {
       distant:new THREE.MeshStandardMaterial({color:0x08141d,metalness:.5,roughness:.75}),
     };
     this.makeSurfaceTextures();
-    this.makeStars();this.makeParticleSystem();this.makeProjectiles();this.makeForce();this.waveFX=new WaveEffects(this.world);
+    this.makeStars();this.makeParticleSystem();this.makeProjectiles();this.makeForce();this.waveFX=new WaveEffects(this.world);this.combatFX=new CombatEffects(this.world);
     this.playerGroup=new THREE.Group();this.world.add(this.playerGroup);
     this.heroGroup=new THREE.Group();this.scene.add(this.heroGroup);this.heroAngle=0;
     this.makeExhaust(this.playerGroup);this.makeExhaust(this.heroGroup);
@@ -234,7 +235,9 @@ export class Renderer {
     }
   }
   /** 状態を持つ敵・アイテムの描画参照をクリアする。 */
-  clearEntities() {for(const o of this.enemyMeshes.values())this.world.remove(o);for(const o of this.itemMeshes.values())this.world.remove(o);this.enemyMeshes.clear();this.itemMeshes.clear();}
+  clearEntities() {for(const o of this.enemyMeshes.values())this.releaseEnemy(o);for(const o of this.itemMeshes.values())this.world.remove(o);this.enemyMeshes.clear();this.itemMeshes.clear();}
+  /** 敵の描画と、専用の被弾発光用材質を解放する。@param {THREE.Object3D} object 対象の敵 */
+  releaseEnemy(object){this.world.remove(object);object.userData.hitMaterial?.dispose();}
   /** ボスと独立した予兆ビームを同時に片付ける。 */
   removeBoss(){
     if(!this.bossGroup)return;
@@ -277,12 +280,13 @@ export class Renderer {
   }
   /** ゲームイベントを画面効果へ変換する。 */
   event(e) {
-    if(e.type==='explosion'){this.burst(e.x,e.y,32,0xffb15c,e.size||1);this.shake=Math.max(this.shake,.12);}
+    if(e.type==='stage'||e.type==='respawn')this.combatFX.reset();
+    if(e.type==='explosion'){this.combatFX.explode(e);this.burst(e.x,e.y,32,0xffb15c,e.size||1);this.shake=Math.max(this.shake,.12);}
     if(e.type==='playerDeath'){this.burst(e.x,e.y,110,0x72c8ff,1.8);this.burst(e.x,e.y,80,0xff8b30,2);this.shake=.8;this.impact=1;}
-    if(e.type==='bossDeath'){this.burst(e.x,e.y,260,0xffb660,3.8);this.burst(e.x-1,e.y,160,0x88caff,2.2);this.shake=1.2;this.impact=1.5;this.removeBoss();}
-    if(e.type==='partBreak'){this.burst(e.x,e.y,70,0xffa03a,1.5);this.shake=.3;}
+    if(e.type==='bossDeath'){this.combatFX.explode(e,true);this.burst(e.x,e.y,260,0xffb660,3.8);this.burst(e.x-1,e.y,160,0x88caff,2.2);this.shake=1.2;this.impact=1.5;this.removeBoss();}
+    if(e.type==='partBreak'){this.combatFX.explode({...e,size:1.5});this.burst(e.x,e.y,70,0xffa03a,1.5);this.shake=.3;}
     if(e.type==='wave'){this.waveFX.fire(e);this.burst(e.x+1,e.y,48,0x67d4ff,1.1);this.shake=Math.max(this.shake,.16+e.power*.16);this.impact=.35+e.power*.15;}
-    if(e.type==='hit')this.burst(e.x,e.y,4,0xffc77b,.3);
+    if(e.type==='hit'){this.combatFX.hit(e);this.burst(e.x,e.y,8,0xffc77b,.4);}
     if(e.type==='armour')this.burst(e.x,e.y,3,0x9fd7ff,.25);
     if(e.type==='block')this.burst(e.x,e.y,3,0xff913d,.25);
     if(e.type==='pickup')this.burst(this.playerGroup.position.x,this.playerGroup.position.y,40,0x77d5ff,1.1);
@@ -336,13 +340,19 @@ export class Renderer {
     this.bits.forEach((obj,i)=>{obj.visible=p.bits>i;obj.position.set(p.x,p.y+(i===0?1.05:-1.05),.5);obj.rotation.set(this.time,0,this.time*2);});
     const live=new Set();
     for(const e of game.enemies) {
+      if(e.dead)continue;
       live.add(e.id);let obj=this.enemyMeshes.get(e.id);
-      if(!obj){obj=this.clone(e.type);obj.scale.setScalar(e.type==='carrier'?.85:e.type==='turret'?.85:.83);this.enemyMeshes.set(e.id,obj);this.world.add(obj);}
+      if(!obj){
+        obj=this.clone(e.type);const overlay=obj.clone(true),hitMaterial=new THREE.MeshBasicMaterial({color:0xffe7bd,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
+        overlay.traverse(part=>{if(part.isMesh)part.material=hitMaterial;});overlay.scale.setScalar(1.01);overlay.visible=false;obj.add(overlay);obj.userData.hitOverlay=overlay;obj.userData.hitMaterial=hitMaterial;
+        obj.scale.setScalar(e.type==='carrier'?.85:e.type==='turret'?.85:.83);this.enemyMeshes.set(e.id,obj);this.world.add(obj);
+      }
       obj.position.set(e.x,e.y,.3);
       if(e.type==='turret'){obj.rotation.z=0;obj.scale.y=e.top?-.85:.85;}
       else {obj.rotation.x=Math.sin(e.age*2)*.18;obj.rotation.z=Math.sin(e.age*2)*.07;}
+      const flash=this.combatFX.flashStrength(e.id);obj.userData.hitOverlay.visible=flash>0;obj.userData.hitMaterial.opacity=flash*.82;
     }
-    for(const [id,obj]of this.enemyMeshes)if(!live.has(id)){this.world.remove(obj);this.enemyMeshes.delete(id);}
+    for(const [id,obj]of this.enemyMeshes)if(!live.has(id)){this.releaseEnemy(obj);this.enemyMeshes.delete(id);}
     const itemLive=new Set();
     for(const item of game.items) {
       itemLive.add(item.id);let obj=this.itemMeshes.get(item.id);
@@ -403,6 +413,7 @@ export class Renderer {
     if(game){if(this.scenery)this.scenery.visible=true;this.syncGame(game,dt);this.fill.position.set(game.player.x+3,3,8);this.fill.intensity=35;}
     else this.syncTitle(dt,view);
     this.waveFX.update(game,dt);
+    this.combatFX.update(game,dt);
     const shake=this.settings.shake===false?0:this.shake;
     this.camera.position.set((Math.random()-.5)*shake*.35,(Math.random()-.5)*shake*.3,34);
     this.particles=this.particles.filter(p=>p.age<p.life);

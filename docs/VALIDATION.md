@@ -29,6 +29,19 @@
 - 数値は[音響検証データ](wave-audio-check.json)、実際の合成音は[audio/REQUIEM-wave-cannon-modern.wav](audio/REQUIEM-wave-cannon-modern.wav)へ保存。
 - 攻撃力・溜め時間・命中判定・フォースなどのルールは変更していない。
 
+## 敵の命中・撃破演出の修正
+
+- 原因：`Game.kill`が爆発通知に敵の種類を`type`として格納し、通知自体の`type='explosion'`を上書きしていた。そのため描画と効果音の爆発処理が呼び出されなかった。
+- 敵の種類を`enemyType`へ分離し、`Game.emit`では通知種別を付随データより優先させた。
+- 修正前に通常弾・波動砲・フォース・通知種別の4テストが失敗することを確認し、修正後にすべて合格。
+- `CombatEffects`で命中点の火花、該当する敵だけの発光、敵モデル消去後まで残る爆炎・煙・衝撃波・装甲片を実装。ボスは段階的な連鎖爆発。チェックポイント復帰とステージ切替では残りを消去する。
+- `npm test`：従来18件と新規7件、計25件に合格。敵5種類、二重撃破防止、波動砲の貫通、フォース接触、被弾発光、爆発寿命、ポーズ、描画枠の再利用を検証。
+- 製品と同じ通常弾・命中判定・描画・音声処理を通す`tests/combat-lab.html`で、小型戦闘機・迎撃機・生体兵器・砲台・補給機の撃破から爆発への接続を実画面で確認。
+- 爆炎から煙・破片への変化、大型敵の連鎖爆発を表示確認。ブラウザーのコンソールエラーなし。確認結果は[combat-browser-check.json](combat-browser-check.json)、画像は[screenshots/enemy-explosion.jpg](screenshots/enemy-explosion.jpg)。
+- 攻撃力・耐久力・得点・アイテム・フォース・波動砲のルールは変更していない。
+
+再確認は`node node_modules/esbuild/bin/esbuild tests/combat-lab.mjs --bundle --format=esm --outfile=.cache/combat-lab.js`、`node tools/serve.mjs`の順で実行し、`http://127.0.0.1:8137/tests/combat-lab.html`を開く。
+
 ## 制約・未確認（従来から継続）
 
 - 自動試験は描画なしのシミュレーションであり、通常の残機制限内で人が全ステージをクリアした実績ではない。

@@ -73,7 +73,7 @@ export class Game {
     this.startStage(this.stage);
   }
   /** 通知をキューへ追加する。@param {string} type 種別 @param {object} data 付随情報 */
-  emit(type,data={}) { this.events.push({type,...data}); }
+  emit(type,data={}) { this.events.push({...data,type}); }
   /** 通知を一度だけ取得する。@returns {Array} 描画・音声への通知 */
   drainEvents() { const out=this.events;this.events=[];return out; }
   /** 新しいステージを開始する。@param {number} index ステージ番号（0始まり） */
@@ -190,7 +190,7 @@ export class Game {
     const score=e.type==='carrier'?500:e.type==='turret'?350:150;
     this.addScore(score+(byWave?Math.min(this.combo,12)*30:0));
     this.drive=Math.min(100,this.drive+2.6);
-    this.emit('explosion',{x:e.x,y:e.y,size:e.type==='carrier'?1.2:.8,type:e.type});
+    this.emit('explosion',{x:e.x,y:e.y,size:e.type==='carrier'?1.2:.8,enemyType:e.type,enemyId:e.id,vx:e.vx||0,weapon:byWave?'wave':undefined});
     if(e.type==='carrier') this.items.push({id:this.nextId++,type:e.drop||'red',x:e.x,y:e.y,age:0});
     if(this.options.difficulty==='ace'&&e.type!=='carrier') this.aimed(e.x,e.y,1,.1,5.5);
   }
@@ -393,7 +393,7 @@ export class Game {
         if(e.dead||s.hit?.has(e.id))continue;
         if(Math.abs(s.x-e.x)<e.r+s.r+(s.type==='wave'?.7:0)&&Math.abs(s.y-e.y)<e.r+s.r) {
           e.hp-=s.damage;this.hits++;s.hit?.add(e.id);
-          if(e.hp<=0) this.kill(e,s.type==='wave');else this.emit('hit',{x:e.x,y:e.y});
+          if(e.hp<=0) this.kill(e,s.type==='wave');else this.emit('hit',{x:e.x,y:e.y,enemyId:e.id,enemyType:e.type,weapon:s.type});
           if(!s.pierce){s.dead=true;break;}
         }
       }

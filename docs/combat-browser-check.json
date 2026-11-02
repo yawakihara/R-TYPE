@@ -1,0 +1,25 @@
+{
+  "checks": [
+    {
+      "enemy": "scout",
+      "result": "KILL / HP 0 / 撃破数 1\n通知：shot, explosion\n爆発：1 / 敵モデル削除：true"
+    },
+    {
+      "enemy": "interceptor",
+      "result": "KILL / HP 0 / 撃破数 1\n通知：shot, explosion\n爆発：1 / 敵モデル削除：true"
+    },
+    {
+      "enemy": "organism",
+      "result": "KILL / HP 0 / 撃破数 1\n通知：shot, explosion\n爆発：1 / 敵モデル削除：true"
+    },
+    {
+      "enemy": "turret",
+      "result": "KILL / HP 0 / 撃破数 1\n通知：shot, explosion\n爆発：1 / 敵モデル削除：true"
+    },
+    {
+      "enemy": "carrier",
+      "result": "KILL / HP 0 / 撃破数 1\n通知：shot, explosion\n爆発：1 / 敵モデル削除：true"
+    }
+  ],
+  "consoleErrors": []
+}
